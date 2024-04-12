@@ -11,8 +11,8 @@ from os.path import isfile, join
 
 
 ##### setup report #####
-configfile: '../config/ancestral_Eddie.yaml'
-configfile: '../config/tsinfer_Eddie.yaml'
+#configfile: '../config/ancestral_Eddie.yaml'
+configfile: '../config/glob_cattle.yaml'
 report: "reports/tsinfer.rst"
 
 ##### setup singularity #####
@@ -37,22 +37,23 @@ vcfdir=config['vcf_dir'] # from config file, the path to vcf
 # the final directory name is now editable -- so can be named according to specific project
 # mapdir indicates where to find the genetic map for phasing (full path in the config)
 Project = config['PROJECT']
+projdir = config['work_dir'] + '/' + Project
 mapdir = config['genmap']
 
 # if want to split multiallelic sites set to TRUE:
 #multiallelic = False
 
-chromosomes = [f'Chr{n}' for n in range(1, config['no_chromosomes'] + 1)]
+chromosomes = [f'chr{n}' for n in range(1, config['no_chromosomes'] + 1)]
 # set a list of 'Chr' + chr# combinations to be used as wildcards
 
 ##### load rules #####
-include: "rules/ancestral_inference.smk"
+#include: "rules/ancestral_inference.smk"
 include: "rules/split.smk"
+include: "rules/filter.smk"
 include: "rules/merge_samples_vcf.smk"
 include: "rules/phasing.smk"
-include: "rules/prepare_files_for_tsinfer.smk"
-#include: "rules/multiallelic.smk"
-include: "rules/infer_trees.smk"
+include: "rules/ancestral_info_to_vcf.smk"
+include: "rules/new_infer_trees.smk"
 
 ##### target rules #####
 # At the end it should generate a phased vcf file that combines all files for
@@ -60,5 +61,5 @@ include: "rules/infer_trees.smk"
 # configuration file. It also checks that vcfs have been filtered before merged
 rule all:
     input:
-        expand(f'../{Project}/Tsinfer/trees/{{chromosome}}.trees', chromosome=chromosomes)
+        expand(f'{projdir}/Tsinfer/trees/{{chromosome}}.simplified.trees', chromosome=chromosomes)
         # tree inference
