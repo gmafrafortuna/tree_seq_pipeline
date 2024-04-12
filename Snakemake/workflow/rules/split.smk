@@ -2,9 +2,11 @@
 splitFiles = list(set([f.strip("vcf.gz").split("_")[1]
     for f in os.listdir(f'{vcfdir}/RawVCF')
         if (f.endswith("vcf.gz") and (f.startswith("Chr") | f.startswith("chr")) )]))
+
 combinedFiles = list(set([f.strip("vcf.gz").split("_")[1]
     for f in os.listdir(f'{vcfdir}/RawVCF')
         if (f.endswith("vcf.gz") and f.startswith("Combined"))]))
+
 allFiles = splitFiles + combinedFiles
 
 if len(splitFiles) > 0:
@@ -21,13 +23,8 @@ if len(splitFiles) > 0:
         log: 'logs/Move_vcf_{chromosome}_{suffixOne}.log'
         shell:
             """
-            if [ -h {input.vcf} ]; then
-                ln -s $( realpath {input.vcf} ) {output.vcf}
-                ln -s $( realpath {input.vcf} ).csi {output.vcf}
-            else
-                ln -s {input.vcf} {output.vcf}
-                ln -s {input.idx} {output.idx}
-            fi
+            ln -s {input.vcf} {output.vcf}
+            ln -s {input.idx} {output.idx}
             """
 
 if len(combinedFiles) > 0:
