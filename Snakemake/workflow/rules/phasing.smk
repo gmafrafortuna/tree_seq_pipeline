@@ -1,24 +1,17 @@
-# def getInputVcfFile_phasing(wildcards):
-#     if os.path.isfile(vcfdir + "/" + wildcards.chromosome + '_final.vcf.gz'):
-#         print("Final file found ")
-#         vcf_file = vcfdir + "/" + wildcards.chromosome + '_final.vcf.gz'
-#         print(vcf_file)
-#     else:
-#         print("No final file ")
-#         file = open(vcfdir + '/Vcf_file_' + wildcards.chromosome + '.txt')
-#         vcf_file = file.read().strip("\n")
-#
-#     return(vcf_file)
+file_to_phase = rules.remove_missing_indels.output.vcf
+file_to_phase_idx = rules.remove_missing_indels.output.index
 
+phased_output = f'{vcfdir}/{{chromosome}}/{{chromosome}}_phased.vcf.gz'
+phased_output_idx = f'{vcfdir}/{{chromosome}}/{{chromosome}}_phased.vcf.gz.csi'
 
 if config['ploidy'] == 1:
     rule rename_phased:
         input:
-            vcf = f'{vcfdir}/{{chromosome}}_final.vcf.gz',
-            idx = f'{vcfdir}/{{chromosome}}_final.vcf.gz.csi'
+            vcf = file_to_phase,
+            idx = file_to_phase_idx,
         output:
-            vcf = f'{vcfdir}/{{chromosome}}_phased.vcf.gz',
-            idx = f'{vcfdir}/{{chromosome}}_phased.vcf.gz.csi'
+            vcf = temp(phased_output),
+            idx = temp(phased_output_idx)
         log: 'logs/Rename_phased_{chromosome}.log'
         resources: cpus=1, mem_mb=32000, time_min=60
         shell:
@@ -31,32 +24,44 @@ if config['ploidy'] == 1:
                 ln -s {input.idx} {output.idx}
             fi
             """
-
 else:
     rule phase:
         input:
-            vcf = f'{vcfdir}/{{chromosome}}_final.vcf.gz',
+            vcf = file_to_phase,
+            idx = file_to_phase_idx,
         output:
-            file = f'{vcfdir}/{{chromosome}}_phased.vcf.gz',
-            idx = f'{vcfdir}/{{chromosome}}_phased.vcf.gz.csi'
+            vcf = phased_output,
         params:
             map = f'{mapdir}/{{chromosome}}.txt',
-        #log: 'logs/phase_{chromosome}.log'
-        threads: 25
-#        resources: cpus=20, mem_mb=25000, time_min=5
+        threads: 32
+        resources: cpus = 32, mem_mb = 2048, time_min = 7200
         conda: 'shapeit4am'
-        log: 'logs/Phase_{chromosome}.log'
+        benchmark:
+            'benchmarks/{chromosome}.shapeit.benchmark.txt'
         shell:
-            """
+            r"""
             str='{wildcards.chromosome}'
             chr=$(echo ${{str:3}})
-            start=`date +%s`
+
             shapeit4 --input {input.vcf} \
-                             --map {params.map} \
-                             --region ${{chr}} \
-                             --output {output} \
-                             --thread {threads}
-            end=`date +%s`
-            echo Execution time was `expr $end - $start` seconds > shapeit_{wildcards.chromosome}.time
-            bcftools index -f {output}
+                                --map {params.map} \
+                                --region $chr \
+                                --output {output.vcf} \
+                                --thread {threads} \
+                                --pbwt-depth 8 \
+                                --sequencing \
+                                --log {wildcards.chromosome}_phased.log                
+            """         
+
+    rule index_phased: 
+        input:
+            rules.phase.output.vcf
+        output:
+            idx = phased_output_idx
+        conda: 'bcftools'
+        benchmark:
+            'benchmarks/{chromosome}.bcftools_index.bechmark.txt'
+        shell:
+            r"""
+            bcftools index -f {input}
             """
