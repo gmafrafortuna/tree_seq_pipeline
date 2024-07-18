@@ -18,7 +18,6 @@ report: "reports/tsinfer.rst"
 ##### setup singularity #####
 # Can we set conda env here???
 
-
 ##### Define some variables #####
 # all files should be in the vcfDir/RawVCF folder
 # files that need spliting are named: Combined_something.vcf.gz
@@ -40,11 +39,12 @@ Project = config['PROJECT']
 projdir = config['work_dir'] + '/' + Project
 mapdir = config['genmap']
 
-# if want to split multiallelic sites set to TRUE:
-#multiallelic = False
-
-chromosomes = [f'chr{n}' for n in range(1, config['no_chromosomes'] + 1)]
+chromosomes = [f'chr{n}' for n in range(config['start_chromosome'], config['end_chromosome'] + 1)]
 # set a list of 'Chr' + chr# combinations to be used as wildcards
+
+wildcard_constraints:
+    chromosome = r'chr\d+'
+# constraining the wildcard to avoid errors 
 
 ##### load rules #####
 #include: "rules/ancestral_inference.smk"
@@ -55,11 +55,16 @@ include: "rules/phasing.smk"
 include: "rules/ancestral_info_to_vcf.smk"
 include: "rules/new_infer_trees.smk"
 
+##### Conditional inputs for rule all based on the existence of phased VCFs and config['phase_only'] #####
+if not config['phase_only']:
+    rule_all_input = expand(f'{projdir}/Tsinfer/trees/{{chromosome}}.dated.trees', chromosome=chromosomes)
+else:
+    rule_all_input = expand(f'{vcfdir}/{{chromosome}}/{{chromosome}}_phased.vcf.gz.csi', chromosome=chromosomes)
+
+
 ##### target rules #####
 # At the end it should generate a phased vcf file that combines all files for
 # each chromosome. These files are stored in the vcf folder declaired in the
 # configuration file. It also checks that vcfs have been filtered before merged
 rule all:
-    input:
-        expand(f'{projdir}/Tsinfer/trees/{{chromosome}}.simplified.trees', chromosome=chromosomes)
-        # tree inference
+    input: rule_all_input

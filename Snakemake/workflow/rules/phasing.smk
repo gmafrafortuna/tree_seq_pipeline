@@ -1,29 +1,27 @@
-file_to_phase = rules.remove_missing_indels.output.vcf
-file_to_phase_idx = rules.remove_missing_indels.output.index
+# Phase files if species is diploid using the output from the
+# remove_missing_indels rule
+
+file_to_phase = f'{vcfdir}/{{chromosome}}/{{chromosome}}.recode.vcf.gz'
+file_to_phase_idx = f'{vcfdir}/{{chromosome}}/{{chromosome}}.recode.vcf.gz.csi'
 
 phased_output = f'{vcfdir}/{{chromosome}}/{{chromosome}}_phased.vcf.gz'
 phased_output_idx = f'{vcfdir}/{{chromosome}}/{{chromosome}}_phased.vcf.gz.csi'
 
+checkpoint decide_start_point:
+    output: "workflow_start.txt"
+    shell:
+        """
+        if [ {config['phase_only']} == False ] && [ -f {phased_output} {phased_output_idx} ]; then
+            echo "ancestral_info_to_vcf" > {output}
+        else
+            echo "start" > {output}
+        fi
+        """
+
 if config['ploidy'] == 1:
-    rule rename_phased:
-        input:
-            vcf = file_to_phase,
-            idx = file_to_phase_idx,
-        output:
-            vcf = temp(phased_output),
-            idx = temp(phased_output_idx)
-        log: 'logs/Rename_phased_{chromosome}.log'
-        resources: cpus=1, mem_mb=32000, time_min=60
-        shell:
-            """
-            if [ -h {input.vcf} ]; then
-                ln -s $( realpath {input.vcf} ) {output.vcf}
-                ln -s $( realpath {input.vcf} ).csi {output.vcf}
-            else
-                ln -s {input.vcf} {output.vcf}
-                ln -s {input.idx} {output.idx}
-            fi
-            """
+    input_ancestral = file_to_phase
+    input_ancestral_idx = file_to_phase_idx
+
 else:
     rule phase:
         input:
@@ -36,8 +34,7 @@ else:
         threads: 32
         resources: cpus = 32, mem_mb = 2048, time_min = 7200
         conda: 'shapeit4am'
-        benchmark:
-            'benchmarks/{chromosome}.shapeit.benchmark.txt'
+        benchmark: 'benchmarks/{chromosome}.shapeit.benchmark.txt'
         shell:
             r"""
             str='{wildcards.chromosome}'
@@ -53,15 +50,17 @@ else:
                                 --log {wildcards.chromosome}_phased.log                
             """         
 
-    rule index_phased: 
-        input:
-            rules.phase.output.vcf
-        output:
-            idx = phased_output_idx
+    rule index_phased_cleanup: 
+        input: rules.phase.output
+        output: phased_output_idx
+        params: 
+            chr = lambda wildcards: wildcards.chromosome[3:],
+            dire = f'{vcfdir}/{{chromosome}}',    
         conda: 'bcftools'
-        benchmark:
-            'benchmarks/{chromosome}.bcftools_index.bechmark.txt'
+        benchmark: 'benchmarks/{chromosome}.bcftools_index.bechmark.txt'
         shell:
             r"""
-            bcftools index -f {input}
+            bcftools index {input}  
             """
+    input_ancestral = phased_output
+    input_ancestral_idx = phased_output_idx

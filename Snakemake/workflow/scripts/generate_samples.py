@@ -6,10 +6,13 @@ import sys
 import json
 import cyvcf2
 import tsinfer
+import numcodecs
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+# create a GZip compressor instance with a specific compression level
+gzip_compressor = numcodecs.GZip(level=1)
 
 def add_populations(vcf, samples, metaData):
     """
@@ -88,13 +91,33 @@ def add_diploid_sites(vcf, samples):
         genotypes = [g for row in variant.genotypes for g in row[0:2]]
         samples.add_site(pos, genotypes, alleles, ancestral_allele=ancestral_allele)
 
+def process_samples(file, metadata, sample_path, chr_length, compressor, threads):
+    with tsinfer.SampleData(path=sample_path, 
+                            sequence_length=chr_length,
+                            compressor=compressor, 
+                            num_flush_threads=threads, max_file_size=2**30) as samples:
+        populations = add_populations(vcf=file, samples=samples, metaData=metadata)
+        print("populations determined")
+        add_diploid_individuals(vcf=file, samples=samples, populations=populations)
+        print("individuals added")
+        add_diploid_sites(vcf=file, samples=samples)
+        print("sites added")
+        
+        print(
+            "Sample file created for {} samples ".format(samples.num_samples)
+            + "({} individuals) ".format(samples.num_individuals)
+            + "with {} variable sites.".format(samples.num_sites),
+            flush=True,
+        )
+
 # -----------------------------------------------------------------------------------------
 
 args = sys.argv
 vcfFile = args[1]
-meta = args[2]
-sampleFile = args[3]
+sampleFile = args[2]
+meta = args[3]
 chrLength = args[4]
+nthreads = int(args[5])
 
 metaFile = pd.read_csv(meta)
 
@@ -102,19 +125,45 @@ metaFile = pd.read_csv(meta)
 vcfD = cyvcf2.VCF(vcfFile, strict_gt=True)
 
 # Create samples for haploid data
-with tsinfer.SampleData(path=sampleFile,
-                        sequence_length=chrLength,
-                        num_flush_threads=16, max_file_size=2**30) as samples:
-   populations = add_populations(vcf = vcfD, samples = samples, metaData = metaFile)
-   print("populations determined")
-   add_diploid_individuals(vcf = vcfD, samples = samples, populations = populations)
-   print("individuals added")
-   add_diploid_sites(vcf = vcfD, samples = samples)
-   print("sites added")
+try:
+    process_samples(vcfD, metaFile, sampleFile, chrLength, gzip_compressor, nthreads)
+except Exception as e:
+    print(f"Error encountered: {e}. Retrying with num_flush_threads set to 16.")
+    process_samples(vcfD, metaFile, sampleFile, chrLength, gzip_compressor, 16)
+        
+# with tsinfer.SampleData(path=sampleFile,
+#                         sequence_length=chrLength,
+#                         num_flush_threads=nthreads, max_file_size=2**30) as samples:
+#    populations = add_populations(vcf = vcfD, samples = samples, metaData = metaFile)
+#    print("populations determined")
+#    add_diploid_individuals(vcf = vcfD, samples = samples, populations = populations)
+#    print("individuals added")
+#    add_diploid_sites(vcf = vcfD, samples = samples)
+#    print("sites added")
 
-print(
-   "Sample file created for {} samples ".format(samples.num_samples)
-   + "({} individuals) ".format(samples.num_individuals)
-   + "with {} variable sites.".format(samples.num_sites),
-   flush=True,
-)
+# -----------------------------------------------------------------------------------------
+# def execute_with_threads(nthreads):
+#     try:
+#         with tsinfer.SampleData(path=sampleFile, 
+#                                 sequence_length=chrLength,
+#                                 compressor=gzip_compressor, 
+#                                 num_flush_threads=nthreads, max_file_size=2**30) as samples:
+#             populations = add_populations(vcf=vcfD, samples=samples, metaData=metaFile)
+#             print("populations determined")
+#             add_diploid_individuals(vcf=vcfD, samples=samples, populations=populations)
+#             print("individuals added")
+#             add_diploid_sites(vcf=vcfD, samples=samples)
+#             print("sites added")
+#     except Exception as e:
+#         print(f"Error encountered: {e}. Retrying with num_flush_threads set to 16.")
+#         with tsinfer.SampleData(path=sampleFile,
+#                                 sequence_length=chrLength,
+#                                 compressor=gzip_compressor,
+#                                 num_flush_threads=16, max_file_size=2**30) as samples:
+#             populations = add_populations(vcf=vcfD, samples=samples, metaData=metaFile)
+#             print("populations determined")
+#             add_diploid_individuals(vcf=vcfD, samples=samples, populations=populations)
+#             print("individuals added")
+#             add_diploid_sites(vcf=vcfD, samples=samples)
+#             print("sites added")
+# execute_with_threads(nthreads)

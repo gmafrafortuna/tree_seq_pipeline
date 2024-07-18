@@ -1,5 +1,5 @@
 # parameters for tsinfer --- change accordingly
-threads=20
+threads=16
 lwertime=0.4
 uprtime=0.6
 lenmultiply=2
