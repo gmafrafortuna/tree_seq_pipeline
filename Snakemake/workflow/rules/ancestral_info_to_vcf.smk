@@ -44,7 +44,7 @@ else:
             vcf_file = input_ancestral,
             idx_file = input_ancestral_idx
         output: f'{vcfdir}/{{chromosome}}/{{chromosome}}_analysis.vcf'
-        conda: bcftools
+        conda: 'bcftools'
         benchmark: 'benchmarks/{chromosome}.decompress.benchmark.txt' 
         shell:
             r"""
