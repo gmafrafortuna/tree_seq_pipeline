@@ -15,11 +15,6 @@ from os.path import isfile, join
 configfile: '../config/glob_cattle.yaml'
 report: "reports/tsinfer.rst"
 
-# specify config files on the command line using --configfile
-#configfile: '../config/ancestral_Eddie.yaml'
-#configfile: '../config/tsinfer_Eddie.yaml'
-
-
 ##### setup singularity #####
 # Can we set conda env here???
 
@@ -31,26 +26,12 @@ report: "reports/tsinfer.rst"
 # (2) sort into the correct Chr folder in vcfDir.
 
 # defining variables that will be used throughout the script
-
-# the final directory name is now editable -- so can be named according to specific project
-# mapdir indicates where to find the genetic map for phasing (full path in the config)
-mapdir = config['genmap']
-oDir = Path(config['o_dir'], config['PROJECT'])
-
-vcfdir=config['vcf_dir'] # from config file, the directory containing the VCF(s) to process
-# the path where to save intermetdiate and final VCFs
-if config['process_vcf_in_original_dir']:
-    vcfOut = config['vcf_dir'] # same as above
-else:
-    vcfOut = f"{oDir}/VCF" # VCF dir inside the output dir
-
-
+vcfdir=config['vcf_dir'] # from config file, the path to vcf
 # this folder can be any where but must have the following structure:
 # vcfDir:
 #   - RawVCF
 #   - Chr1
 #   -Chr...
-
 
 # the final directory name is now editable -- so can be named according to specific project
 # mapdir indicates where to find the genetic map for phasing (full path in the config)
