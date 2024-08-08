@@ -32,8 +32,8 @@ if len(splitFiles) > 0:
             vcf = f'{vcfdir}/RawVCF/{{chromosome}}_{{suffixOne}}.vcf.gz',
             idx = f'{vcfdir}/RawVCF/{{chromosome}}_{{suffixOne}}.vcf.gz.csi'
         output:
-            vcf = f'{vcfdir}/{{chromosome}}/{{chromosome}}_{{suffixOne}}.vcf.gz',
-            idx = f'{vcfdir}/{{chromosome}}/{{chromosome}}_{{suffixOne}}.vcf.gz.csi'
+            vcf = f'{vcfOut}/{{chromosome}}/{{chromosome}}_{{suffixOne}}.vcf.gz',
+            idx = f'{vcfOut}/{{chromosome}}/{{chromosome}}_{{suffixOne}}.vcf.gz.csi'
         conda: "bcftools"
         threads: 1
         resources: cpus=1, mem_mb=32000, time_min=60
@@ -65,6 +65,6 @@ if len(combinedFiles) > 0:
             str='{wildcards.chromosome}'
             chr=$(echo ${{str:3}})
 
-            bcftools view -r ${{chr}} {input} -O z -o {output}
-            bcftools index -f {output}
+            bcftools view -r ${{chr}} {input} -O z -o {output.vcf}
+            bcftools index -f {output.vcf}
             """
