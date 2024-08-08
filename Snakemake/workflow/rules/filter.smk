@@ -3,9 +3,18 @@
 # else, compare the files and filter out overlapping then merge the vcfs into
 # one and index and use the output from the merge as input for the next step
 if len(allFiles) == 1:
-    input_vcf = rules.split_and_move_vcfs.output
-    input_index = f'{rules.split_and_move_vcfs.output}.csi'
-    input_summary = 'None'
+    input_vcf = f'{vcfdir}/{{chromosome}}/{{chromosome}}_{allFiles[0]}.vcf.gz'
+    rule index_input:
+        input: input_vcf
+        output: 
+            idx = f'{vcfdir}/{{chromosome}}/{{chromosome}}_{allFiles[0]}.vcf.gz.csi',
+        conda: 'bcftools'
+        benchmark: 'benchmarks/{chromosome}.index_input.benchmark.txt'
+        shell:
+            r"""
+            bcftools index -f {input}
+            """
+    input_index = rules.index_input.output.idx
 
 else:
     input_to_filter = [f'{vcfdir}/{{chromosome}}/{{chromosome}}_{file}.vcf.gz' for file in allFiles]
@@ -132,28 +141,22 @@ else:
             r"""
             bcftools index -f {input}
             """                    
-    
-    rule vcf_summary:
-        input: 
-            vcf_file = rules.merge.output,
-            index = rules.index_merged.output,
-        output:
-            summary = f'{vcfdir}/{{chromosome}}/{{chromosome}}_summary.vchk',
-            # done = touch(f'{vcfdir}/{{chromosome}}/merged_summary.done')
-        params:
-            plots = f'{vcfdir}/{{chromosome}}/{{chromosome}}_summary/'
-        conda: 'bcftools'
-        benchmark: 'benchmarks/{chromosome}.summary.benchmark.txt'
-        shell:
-            r"""
-            bcftools stats {input.vcf_file} > {output.summary}
-            plot-vcfstats -p {params.plots} {output.summary}
-            """
-
     input_vcf = rules.merge.output
     input_index = rules.index_merged.output
-    input_summary = rules.vcf_summary.output.summary
 
-# else, use the output from split_and_move as input for the next step
-# else:
-#     input_vcf = rules.split_and_move_vcfs.output
+rule vcf_summary:
+    input: 
+        vcf_file = input_vcf,
+        index = input_index,
+    output:
+        summary = f'{vcfdir}/{{chromosome}}/{{chromosome}}_summary.vchk',
+    params:
+        plots = f'{vcfdir}/{{chromosome}}/{{chromosome}}_summary/'
+    conda: 'bcftools'
+    benchmark: 'benchmarks/{chromosome}.summary.benchmark.txt'
+    shell:
+        r"""
+        bcftools stats {input.vcf_file} > {output.summary}
+        plot-vcfstats -p {params.plots} {output.summary}
+        """
+input_summary = rules.vcf_summary.output.summary
